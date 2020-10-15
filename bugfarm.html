@@ -47,17 +47,30 @@ body, a {
 
 const paper_width = 1024;
 const paper_height = 1024;
-const num_bugs = 100;
-const max_v = 5;
+const num_bugs = 200;
+const max_v = 1;
 
 var paper;
 var bugs = [];
+var links = {};
+var link_elements = {};
 
 $(document).ready(function() {
     console.log('Bug Farm here!');
     paper = Raphael(0, 0, paper_width, paper_height);
 
-    for (var i=0; i < num_bugs; i++) bugs.push(new Bug({id: 'bug'+i}));
+    for (var i=0; i < num_bugs/2; i++) {
+        bugs.push(BlueBug(i));
+    }
+    for (var i=num_bugs/2; i < num_bugs; i++) {
+        bugs.push(RedBug(i));
+    }
+    bugs[0].becomeInfected();
+    bugs[num_bugs-1].becomeInfected();
+
+    for (var l=0; l < 0; l++) {
+        addLink(randomBug(), randomBug());
+    }
 
     window.setInterval(tick, 50);
 });
@@ -66,28 +79,77 @@ function tick() {
     for (var b=0; b < num_bugs; b++) {
         bugs[b].tick();
     }
+    updateLinks();
 }
 
+function randomBug() {
+    return Math.floor(Math.random() * num_bugs)
+}
+
+function linkKey(i, j) {
+    return '' + Math.min(i, j) + '-' + Math.max(i, j);
+}
+
+function linkPath(i, j) {
+    return [
+        'M', bugs[i].x.toString(), ' ', bugs[i].y.toString(),
+        'L', bugs[j].x.toString(), ' ', bugs[j].y.toString()
+    ].join('');  
+}
+
+function addLink(i, j, color) {
+    if (Object.keys(links).length >= 100) return;
+    const key = linkKey(i, j);
+    if (key in links) return;
+    links[key] = [i, j];
+    const link_element = paper.path(linkPath(i, j));
+    link_element.attr('stroke', color || 'gray');
+    link_elements[key] = link_element;
+}
+
+function updateLinks() {
+    for (var l in links) {
+        link_elements[l].attr('path', linkPath(links[l][0], links[l][1]));
+    }
+}
+
+function BlueBug(id) {
+    return new Bug({
+        id: id,
+        faction: 'blue',
+        color: 'blue',
+        motion_multiplier: 0.5,
+        protection_multiplier: 0.90
+    });
+}
+
+function RedBug(id) {
+    return new Bug({
+        id: id,
+        faction: 'red',
+        color: 'red',
+        motion_multiplier: 1.0,
+        protection_multiplier: 0.1
+    });
+}
 
 function Bug(options) {
 
     this.init = function(options) {
         console.log('init bug:', options);
-        this.r = 8;
+        this.r = 5;
         this.infected = 0;
-        this.contact_list = [];
-        this.color = 'blue';
+        this.color = 'gray';
         this.fill = 'white';
-        if (Math.random() > 0.5) {
-            this.color = 'crimson';
-            this.fill = 'darkgrey';
-        }
-        this.home_x = this.x = Math.random() * paper_width;
+        this.home_x = this.x = Math.random() * paper_width/2;
         this.home_y = this.y = Math.random() * paper_height;
-        this.moving = 100;
+        this.moving = 10000;
+        this.motion_multiplier = 1.0;
+        this.protection_multiplier = 1.0;
         this.dx = Math.random() * 2 * max_v - max_v;
         this.dy = Math.random() * 2 * max_v - max_v;
         for (var o in options) this[o] = options[o];
+        if (this.faction == 'red') this.home_x = this.x = paper_width - this.x;
         this.elts = [];
         this.render();
         return this;
@@ -102,10 +164,10 @@ function Bug(options) {
         var circle = paper.circle(this.x, this.y, this.r);
         circle.attr({
             stroke: this.color,
-            'stroke-opacity': 1.0,
+            //'stroke-opacity': 1.0,
+            'fill-opacity': 1.0,
             'stroke-width': 3,
-            fill: this.fill,
-            'fill-opacity': 0.5
+            fill: this.fill
         });
         this.elts.push(circle);
     };
@@ -114,18 +176,68 @@ function Bug(options) {
         if (this.moving <= 0) return;
         this.moving--;
 
-        this.x += this.dx;
-        while (this.x > paper_width) this.x -= paper_width;
-        while (this.x < 0) this.x += paper_width;
-        this.y += this.dy;
-        while (this.y > paper_height) this.y -= paper_height;
-        while (this.y < 0) this.y += paper_height;
+        // slime trails
+        if (this.infected && ((this.moving % 10) == 0)) {
+            const slime = paper.circle(this.x, this.y, 1);
+            slime.attr('stroke', this.infection_color);
+        }
+
+        this.x += this.dx * this.motion_multiplier;
+        if (this.x > paper_width) {
+            this.dx = -this.dx;
+            this.x = paper_width - (this.x - paper_width);
+        }
+        else if (this.x < 0) {
+            this.dx = -this.dx;
+            this.x = -this.x;
+        }
+
+        this.y += this.dy * this.motion_multiplier;
+        if (this.y > paper_height) {
+            this.dy = -this.dy;
+            this.y = paper_height - (this.y - paper_height);
+        }
+        else if (this.y < 0) {
+            this.dy = -this.dy;
+            this.y = -this.y;
+        }
+
         for (var e in this.elts) {
             this.elts[e].attr({'cx': this.x, 'cy': this.y});
         }
     };
 
+    this.distanceTo = function(b) {
+        return Math.sqrt((this.x - bugs[b].x) ** 2 + (this.y - bugs[b].y) ** 2);
+    };
+
     this.infect = function() {
+        for (var b in bugs) {
+            if (b == this.id) continue;
+            const distance = this.distanceTo(b);
+            if (distance < (2 * this.r)) {
+                if (this.infected && !bugs[b].infected) {
+                    if (Math.random() > bugs[b].protection_multiplier) {
+                        bugs[b].becomeInfected(this.infection_color);
+                        addLink(this.id, b);
+                    }
+                }
+                else if (bugs[b].infected && !this.infected) {
+                    if (Math.random() > this.protection_multiplier) {
+                        this.becomeInfected(bugs[b].infection_color);
+                        addLink(this.id, b);
+                    }
+                }
+            }
+        }
+    };
+
+    this.becomeInfected = function(infection_color) {
+        this.infected = 1;
+        this.infection_color = infection_color || this.color;
+        for (var e in this.elts) {
+            this.elts[e].attr({fill: 'black'});
+        }
     };
 
     return this.init(options || {});
