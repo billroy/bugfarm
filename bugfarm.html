@@ -25,7 +25,7 @@
 <!-- CSS styling -->
 <style type='text/css'>
 :root {
-    --main-bg-color: lightgrey;
+    --main-bg-color: black;
     --main-fg-color: white;
 }
 body, a {
@@ -45,7 +45,7 @@ body, a {
 
 <script type='text/javascript'>
 
-const paper_width = 1024;
+const paper_width = 2048;
 const paper_height = 1024;
 const num_bugs = 200;
 const max_v = 1;
@@ -54,10 +54,15 @@ var paper;
 var bugs = [];
 var links = {};
 var link_elements = {};
+var infection_count = 0;
 
 $(document).ready(function() {
     console.log('Bug Farm here!');
     paper = Raphael(0, 0, paper_width, paper_height);
+
+    const header = paper.text(200, 50, "Covid Bug Wars");
+    header.attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50});
+    drawGrid();
 
     for (var i=0; i < num_bugs/2; i++) {
         bugs.push(BlueBug(i));
@@ -73,6 +78,8 @@ $(document).ready(function() {
     }
 
     window.setInterval(tick, 50);
+
+    window.setTimeout(restart, 1000*60*5);
 });
 
 function tick() {
@@ -80,6 +87,33 @@ function tick() {
         bugs[b].tick();
     }
     updateLinks();
+}
+
+function restart() {
+    document.location.href = document.location.href;
+}
+
+function drawGrid() {
+    color = 'lime';
+    drawLine(0,0, 0,paper_width, color);
+    drawLine(0,0, paper_height,0, color);
+    drawLine(0,paper_width, paper_width,paper_height, color);
+    drawLine(paper_width,0, paper_width,paper_height, color);
+
+    x_spacing = 128;
+    for (x=0; x <= paper_width; x += x_spacing) drawLine(x,0, x,paper_height, color);
+    y_spacing = 128;
+    for (y=0; y <= paper_height; y += y_spacing) drawLine(0,y, paper_width,y, color);
+}
+
+function drawLine(x1,y1, x2,y2, color) {
+    const path = [
+        'M', x1.toString(), ' ', y1.toString(),
+        'L', x2.toString(), ' ', y2.toString()
+    ].join('');
+    const line = paper.path(path);
+    line.attr('stroke', color);
+    return line
 }
 
 function randomBug() {
@@ -103,7 +137,7 @@ function addLink(i, j, color) {
     if (key in links) return;
     links[key] = [i, j];
     const link_element = paper.path(linkPath(i, j));
-    link_element.attr('stroke', color || 'gray');
+    link_element.attr('stroke', color || 'darkturquoise');
     link_elements[key] = link_element;
 }
 
@@ -137,11 +171,13 @@ function Bug(options) {
 
     this.init = function(options) {
         console.log('init bug:', options);
-        this.r = 5;
+        this.r = 8;
         this.infected = 0;
+        this.death_timer = 1000;
+        this.infection_count = 0;
         this.color = 'gray';
-        this.fill = 'white';
-        this.home_x = this.x = Math.random() * paper_width/2;
+        this.fill = 'limegreen';
+        this.home_x = this.x = Math.random() * paper_width/4;
         this.home_y = this.y = Math.random() * paper_height;
         this.moving = 10000;
         this.motion_multiplier = 1.0;
@@ -158,6 +194,9 @@ function Bug(options) {
     this.tick = function() {
         this.move();
         this.infect();
+        if (this.infected && this.death_timer) {
+            if (--this.death_timer <= 0) this.die();
+        }
     };
 
     this.render = function() {
@@ -166,13 +205,18 @@ function Bug(options) {
             stroke: this.color,
             //'stroke-opacity': 1.0,
             'fill-opacity': 1.0,
-            'stroke-width': 3,
+            'stroke-width': 4,
             fill: this.fill
+        });
+        const self = this;
+        circle.click(function() {
+            self.becomeInfected();
         });
         this.elts.push(circle);
     };
 
     this.move = function() {
+        if (this.dead) return;
         if (this.moving <= 0) return;
         this.moving--;
 
@@ -180,6 +224,9 @@ function Bug(options) {
         if (this.infected && ((this.moving % 10) == 0)) {
             const slime = paper.circle(this.x, this.y, 1);
             slime.attr('stroke', this.infection_color);
+            window.setTimeout(function() {
+                slime.remove();
+            }, 30000);
         }
 
         this.x += this.dx * this.motion_multiplier;
@@ -212,20 +259,28 @@ function Bug(options) {
     };
 
     this.infect = function() {
+        if (this.dead) return;
         for (var b in bugs) {
             if (b == this.id) continue;
+            if (bugs[b].dead) continue;
             const distance = this.distanceTo(b);
             if (distance < (2 * this.r)) {
                 if (this.infected && !bugs[b].infected) {
                     if (Math.random() > bugs[b].protection_multiplier) {
                         bugs[b].becomeInfected(this.infection_color);
-                        addLink(this.id, b);
+                        addLink(this.id, b, this.infection_color);
+                        this.infection_count++;
+                        this.elts[0].attr('r', this.r + this.infection_count);
+                        infection_count++;
+                        if (infection_count >= num_bugs) restart();
                     }
                 }
                 else if (bugs[b].infected && !this.infected) {
                     if (Math.random() > this.protection_multiplier) {
                         this.becomeInfected(bugs[b].infection_color);
-                        addLink(this.id, b);
+                        addLink(this.id, b, bugs[b].infection_color);
+                        infection_count++;
+                        if (infection_count >= num_bugs) restart();
                     }
                 }
             }
@@ -235,6 +290,13 @@ function Bug(options) {
     this.becomeInfected = function(infection_color) {
         this.infected = 1;
         this.infection_color = infection_color || this.color;
+        for (var e in this.elts) {
+            this.elts[e].attr({fill: 'yellow'});
+        }
+    };
+
+    this.die = function() {
+        this.dead = 1;
         for (var e in this.elts) {
             this.elts[e].attr({fill: 'black'});
         }
