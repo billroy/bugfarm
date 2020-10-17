@@ -16,11 +16,12 @@
     <script type='text/javascript' src='/static/js/sound.js'></script>
     <link rel="stylesheet" media="screen" type="text/css" href="/static/js/colorpicker/css/colorpicker.css" />
     <script type="text/javascript" src="/static/js/colorpicker/js/colorpicker.js"></script>
+
+    <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jplayer/2.9.2/jplayer/jquery.jplayer.min.js'></script>
+    <script type='text/javascript' src='static/js/sound.js'></script>
 -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"  crossorigin="anonymous"></script>
     <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.js'></script>
-    <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jplayer/2.9.2/jplayer/jquery.jplayer.min.js'></script>
-    <script type='text/javascript' src='static/js/sound.js'></script>
 </head><body>
 
 <!-- CSS styling -->
@@ -55,7 +56,6 @@ var paper;
 var bugs = [];
 var links = {};
 var link_elements = {};
-var infection_count = 0;
 
 $(document).ready(function() {
     console.log('Bug Farm here!');
@@ -65,8 +65,6 @@ $(document).ready(function() {
     paper = Raphael(0, 0, paper_width, paper_height);
     console.log('paper:', paper_width, paper_height);
 
-    const header = paper.text(paper_width/2, 50, "Viral Transmission Simulator");
-    header.attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50});
     drawGrid();
     renderStatus();
 
@@ -79,14 +77,12 @@ $(document).ready(function() {
     bugs[0].becomeInfected();
     bugs[num_bugs-1].becomeInfected();
 
-    for (var l=0; l < 0; l++) {
-        addLink(randomBug(), randomBug());
-    }
+    const header = paper.text(paper_width/2, 50, "Viral Transmission Simulator")
+        .attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50})
+        .toFront();
 
     window.setInterval(tick, 20);
-
     window.setInterval(updateStatus, 1000);
-
     window.setTimeout(restart, 1000*60*5);
 });
 
@@ -94,7 +90,14 @@ function tick() {
     for (var b=0; b < num_bugs; b++) {
         bugs[b].tick();
     }
+    time_counter++;
     updateLinks();
+}
+
+function endGame(message) {
+    // display messaga
+    console.log('endgame:', message);
+    window.setTimeout(restart, 5000);
 }
 
 function restart() {
@@ -128,7 +131,8 @@ let status_elements = {
     red: {healthy: 0, infected: 0, dead: 0},
     green: {healthy: 0, infected: 0, dead: 0}
 };
-
+let time_counter = 0;
+let time_display = '';
 
 function renderStatus() {
     const status_width = 400;
@@ -162,6 +166,9 @@ function renderStatus() {
     e4.attr(attrs);
     t_y += y_inc;
 
+    time_display = paper.text(64, paper_height-64, '0');
+    time_display.attr(attrs);
+
     const column_width = 128;
     t_x = tt_x + column_width;
     t_y = tt_y;
@@ -188,6 +195,7 @@ function renderStatus() {
     t_y += y_inc;
     status_elements.red.dead     = paper.text(t_x, t_y, '');
     status_elements.red.dead.attr(attrs);
+
 }
 
 function updateStatus() {
@@ -202,6 +210,9 @@ function updateStatus() {
         else status[f].healthy++;
     }
     //console.log('status:', status);
+    if ((status.red.infected == 0) && (status.green.infected == 0)) endGame('Virus died out.');
+    else if ((status.red.infected + status.red.healthy) == 0) endGame('Red died out.');
+    else if ((status.green.infected + status.green.healthy) == 0) endGame('Green died out.');
 
     status_elements.green.healthy.attr({text: status.green.healthy.toString()});
     status_elements.green.infected.attr({text: status.green.infected.toString()});
@@ -209,6 +220,7 @@ function updateStatus() {
     status_elements.red.healthy.attr({text: status.red.healthy.toString()});
     status_elements.red.infected.attr({text: status.red.infected.toString()});
     status_elements.red.dead.attr({text: status.red.dead.toString()});
+    time_display.attr({text: time_counter.toString()});
 }
 
 function randomBug() {
@@ -231,8 +243,9 @@ function addLink(i, j, color) {
     const key = linkKey(i, j);
     if (key in links) return;
     links[key] = [i, j];
-    const link_element = paper.path(linkPath(i, j));
-    link_element.attr('stroke', color || 'darkturquoise');
+    const link_element = paper.path(linkPath(i, j))
+        .attr('stroke', color || 'darkturquoise')
+        .toBack();
     link_elements[key] = link_element;
 }
 
@@ -253,7 +266,7 @@ function GreenBug(id) {
 }
 
 function RedBug(id) {
-    return new Bug({
+    let bug = new Bug({
         id: id,
         faction: 'red',
         color: 'red',
@@ -261,12 +274,14 @@ function RedBug(id) {
         motion_multiplier: 1.0,
         protection_multiplier: 0.1
     });
+    //bug.becomeInfected();
+    return bug;
 }
 
 function Bug(options) {
 
     this.init = function(options) {
-        console.log('init bug:', options);
+        //console.log('init bug:', options);
         this.r = 8;
         this.infected = 0;
         this.dead = 0;
@@ -319,8 +334,9 @@ function Bug(options) {
 
         // slime trails
         if (this.infected && ((this.moving % 10) == 0)) {
-            const slime = paper.circle(this.x, this.y, 1);
-            slime.attr('stroke', this.infection_color);
+            const slime = paper.circle(this.x, this.y, 1)
+                .attr('stroke', this.infection_color)
+                .toBack();
             window.setTimeout(function() {
                 slime.remove();
             }, 30000);
@@ -368,28 +384,27 @@ function Bug(options) {
                         addLink(this.id, b, this.infection_color);
                         this.infection_count++;
                         this.elts[0].attr('r', this.r + this.infection_count);
-                        infection_count++;
-                        if (infection_count >= num_bugs) restart();
                     }
+                    //else console.log('outbound infection prevented');
                 }
                 else if (bugs[b].infected && !this.infected) {
                     if (Math.random() > this.protection_multiplier) {
                         this.becomeInfected(bugs[b].infection_color);
                         addLink(this.id, b, bugs[b].infection_color);
-                        infection_count++;
-                        if (infection_count >= num_bugs) restart();
                     }
+                    //else console.log('inbound infection prevented');
                 }
             }
         }
     };
 
     this.flash = function(x, y, r, color, timeout) {
-        let flash_mark = paper.circle(x, y, r);
-        flash_mark.attr({stroke: color, fill: 'white'});
-        window.setTimeout(function() {
-            flash_mark.remove();
-        }, timeout);
+        let flash_mark = paper.circle(x, y, r)
+            .attr({stroke: color, fill: 'white'})
+			.animate({r:r}, timeout, 'ease-in', function() {flash_mark.remove()});
+        //window.setTimeout(function() {
+        //    flash_mark.remove();
+        //}, timeout);
     };
 
     this.becomeInfected = function(infection_color) {
@@ -398,14 +413,14 @@ function Bug(options) {
         for (var e in this.elts) {
             this.elts[e].attr({fill: 'yellow'});
         }
-        this.flash(this.x, this.y, 25, infection_color, 100);
+        this.flash(this.x, this.y, 25, infection_color, 125);
         //Sound.play('tick');
     };
 
     this.die = function() {
         this.dead = 1;
         for (var e in this.elts) {
-            this.elts[e].attr({fill: 'black'});
+            this.elts[e].animate({fill: 'black', opacity: 0.5}, 500);
         }
         //Sound.play('gong');
     };
