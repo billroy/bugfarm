@@ -63,10 +63,12 @@ $(document).ready(function() {
     paper_width = width  = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
     paper_height = window.innerHeight|| document.documentElement.clientHeight|| document.body.clientHeight;
     paper = Raphael(0, 0, paper_width, paper_height);
+    console.log('paper:', paper_width, paper_height);
 
-    const header = paper.text(1024, 50, "Virus Invasion Status");
+    const header = paper.text(paper_width/2, 50, "Viral Transmission Simulator");
     header.attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50});
     drawGrid();
+    renderStatus();
 
     for (var i=0; i < num_bugs/2; i++) {
         bugs.push(GreenBug(i));
@@ -82,6 +84,8 @@ $(document).ready(function() {
     }
 
     window.setInterval(tick, 20);
+
+    window.setInterval(updateStatus, 1000);
 
     window.setTimeout(restart, 1000*60*5);
 });
@@ -120,6 +124,93 @@ function drawLine(x1,y1, x2,y2, color) {
     return line
 }
 
+let status_elements = {
+    red: {healthy: 0, infected: 0, dead: 0},
+    green: {healthy: 0, infected: 0, dead: 0}
+};
+
+
+function renderStatus() {
+    const status_width = 400;
+    const status_height = 200;
+    let t_x = paper_width - status_width;
+    let t_y = paper_height - status_height;
+    let border = paper.rect(t_x, t_y, status_width-1, status_height-1);
+    border.attr({stroke: 'yellow'});
+
+    const y_inc = 30;
+    tt_x = t_x += 24;
+    t_y += y_inc;
+
+    const attrs = {
+        stroke: 'white', 
+        fill: 'white', 
+        'font-size':24, 
+        'text-anchor':'start'
+    };
+    let e1 = paper.text(t_x + 128, t_y, 'Status');
+    e1.attr(attrs);
+    t_y += y_inc * 1.5;
+    tt_y = t_y;
+    let e2 = paper.text(t_x, t_y, 'Healthy:');
+    e2.attr(attrs);
+    t_y += y_inc;
+    let e3 = paper.text(t_x, t_y, 'Infected:');
+    e3.attr(attrs);
+    t_y += y_inc;
+    let e4 = paper.text(t_x, t_y, 'Dead:');
+    e4.attr(attrs);
+    t_y += y_inc;
+
+    const column_width = 128;
+    t_x = tt_x + column_width;
+    t_y = tt_y;
+    attrs.stroke = 'lime';
+    attrs.fill = 'lime';
+    status_elements.green.healthy  = paper.text(t_x, t_y, '');
+    status_elements.green.healthy.attr(attrs);
+    t_y += y_inc;
+    status_elements.green.infected = paper.text(t_x, t_y, '');
+    status_elements.green.infected.attr(attrs);
+    t_y += y_inc;
+    status_elements.green.dead     = paper.text(t_x, t_y, '');
+    status_elements.green.dead.attr(attrs);
+
+    t_x = tt_x + column_width*2;
+    t_y = tt_y;
+    attrs.stroke = 'red';
+    attrs.fill = 'red';
+    status_elements.red.healthy  = paper.text(t_x, t_y, '');
+    status_elements.red.healthy.attr(attrs);
+    t_y += y_inc;
+    status_elements.red.infected = paper.text(t_x, t_y, '');
+    status_elements.red.infected.attr(attrs);
+    t_y += y_inc;
+    status_elements.red.dead     = paper.text(t_x, t_y, '');
+    status_elements.red.dead.attr(attrs);
+}
+
+function updateStatus() {
+    let status = {
+        red: {healthy: 0, infected: 0, dead: 0},
+        green: {healthy: 0, infected: 0, dead: 0}
+    };
+    for (var b in bugs) {
+        f = bugs[b].faction;
+        if (bugs[b].dead) status[f].dead++;
+        else if (bugs[b].infected) status[f].infected++;
+        else status[f].healthy++;
+    }
+    //console.log('status:', status);
+
+    status_elements.green.healthy.attr({text: status.green.healthy.toString()});
+    status_elements.green.infected.attr({text: status.green.infected.toString()});
+    status_elements.green.dead.attr({text: status.green.dead.toString()});
+    status_elements.red.healthy.attr({text: status.red.healthy.toString()});
+    status_elements.red.infected.attr({text: status.red.infected.toString()});
+    status_elements.red.dead.attr({text: status.red.dead.toString()});
+}
+
 function randomBug() {
     return Math.floor(Math.random() * num_bugs)
 }
@@ -136,7 +227,7 @@ function linkPath(i, j) {
 }
 
 function addLink(i, j, color) {
-    if (Object.keys(links).length >= 100) return;
+    //if (Object.keys(links).length >= 100) return;
     const key = linkKey(i, j);
     if (key in links) return;
     links[key] = [i, j];
@@ -154,7 +245,7 @@ function updateLinks() {
 function GreenBug(id) {
     return new Bug({
         id: id,
-        faction: 'lime',
+        faction: 'green',
         color: 'lime',
         motion_multiplier: 0.5,
         protection_multiplier: 0.90
@@ -178,6 +269,7 @@ function Bug(options) {
         console.log('init bug:', options);
         this.r = 8;
         this.infected = 0;
+        this.dead = 0;
         this.death_timer = 1000;
         this.infection_count = 0;
         this.color = 'gray';
@@ -307,7 +399,7 @@ function Bug(options) {
             this.elts[e].attr({fill: 'yellow'});
         }
         this.flash(this.x, this.y, 25, infection_color, 100);
-        Sound.play('tick');
+        //Sound.play('tick');
     };
 
     this.die = function() {
