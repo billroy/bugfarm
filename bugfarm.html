@@ -66,7 +66,6 @@ $(document).ready(function() {
     console.log('paper:', paper_width, paper_height);
 
     drawGrid();
-    renderStatus();
 
     for (var i=0; i < num_bugs/2; i++) {
         bugs.push(GreenBug(i));
@@ -80,6 +79,7 @@ $(document).ready(function() {
     const header = paper.text(paper_width/2, 50, "Viral Transmission Simulator")
         .attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50})
         .toFront();
+    renderStatus();
 
     window.setInterval(tick, 20);
     window.setInterval(updateStatus, 1000);
@@ -139,8 +139,9 @@ function renderStatus() {
     const status_height = 200;
     let t_x = paper_width - status_width;
     let t_y = paper_height - status_height;
-    let border = paper.rect(t_x, t_y, status_width-1, status_height-1);
-    border.attr({stroke: 'yellow'});
+    let border = paper.rect(t_x, t_y, status_width-1, status_height-1)
+        .attr({stroke: 'white', fill: 'black', opacity: 0.75})
+        .toFront();
 
     const y_inc = 30;
     tt_x = t_x += 24;
@@ -152,18 +153,14 @@ function renderStatus() {
         'font-size':24, 
         'text-anchor':'start'
     };
-    let e1 = paper.text(t_x + 128, t_y, 'Status');
-    e1.attr(attrs);
+    let e1 = paper.text(t_x + 128, t_y, 'Status').attr(attrs).toFront();
     t_y += y_inc * 1.5;
     tt_y = t_y;
-    let e2 = paper.text(t_x, t_y, 'Healthy:');
-    e2.attr(attrs);
+    let e2 = paper.text(t_x, t_y, 'Healthy:').attr(attrs).toFront();
     t_y += y_inc;
-    let e3 = paper.text(t_x, t_y, 'Infected:');
-    e3.attr(attrs);
+    let e3 = paper.text(t_x, t_y, 'Infected:').attr(attrs).toFront();
     t_y += y_inc;
-    let e4 = paper.text(t_x, t_y, 'Dead:');
-    e4.attr(attrs);
+    let e4 = paper.text(t_x, t_y, 'Dead:').attr(attrs).toFront();
     t_y += y_inc;
 
     time_display = paper.text(64, paper_height-64, '0');
@@ -174,28 +171,21 @@ function renderStatus() {
     t_y = tt_y;
     attrs.stroke = 'lime';
     attrs.fill = 'lime';
-    status_elements.green.healthy  = paper.text(t_x, t_y, '');
-    status_elements.green.healthy.attr(attrs);
+    status_elements.green.healthy = paper.text(t_x, t_y, '').attr(attrs).toFront();
     t_y += y_inc;
-    status_elements.green.infected = paper.text(t_x, t_y, '');
-    status_elements.green.infected.attr(attrs);
+    status_elements.green.infected = paper.text(t_x, t_y, '').attr(attrs).toFront();
     t_y += y_inc;
-    status_elements.green.dead     = paper.text(t_x, t_y, '');
-    status_elements.green.dead.attr(attrs);
+    status_elements.green.dead = paper.text(t_x, t_y, '').attr(attrs).toFront();
 
     t_x = tt_x + column_width*2;
     t_y = tt_y;
     attrs.stroke = 'red';
     attrs.fill = 'red';
-    status_elements.red.healthy  = paper.text(t_x, t_y, '');
-    status_elements.red.healthy.attr(attrs);
+    status_elements.red.healthy = paper.text(t_x, t_y, '').attr(attrs).toFront();
     t_y += y_inc;
-    status_elements.red.infected = paper.text(t_x, t_y, '');
-    status_elements.red.infected.attr(attrs);
+    status_elements.red.infected = paper.text(t_x, t_y, '').attr(attrs).toFront();
     t_y += y_inc;
-    status_elements.red.dead     = paper.text(t_x, t_y, '');
-    status_elements.red.dead.attr(attrs);
-
+    status_elements.red.dead = paper.text(t_x, t_y, '').attr(attrs).toFront();
 }
 
 function updateStatus() {
