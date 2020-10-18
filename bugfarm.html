@@ -50,12 +50,15 @@ body, a {
 var paper_width = 2048;
 var paper_height = 1024;
 var num_bugs = 200;
-var max_v = 1;
+var max_v = 1.0;
+var g = 100.0;    // 50.;
+var dt = 20;
 
 var paper;
 var bugs = [];
 var links = {};
 var link_elements = {};
+var status_text = '';
 
 $(document).ready(function() {
     console.log('Bug Farm here!');
@@ -76,14 +79,16 @@ $(document).ready(function() {
     bugs[0].becomeInfected();
     bugs[num_bugs-1].becomeInfected();
 
-    const header = paper.text(paper_width/2, 50, "Viral Transmission Simulator")
+    status_text = paper.text(paper_width/2, 50, "Pandemico Silico")
         .attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50})
         .toFront();
     renderStatus();
 
-    window.setInterval(tick, 20);
+    window.setInterval(tick, dt);
     window.setInterval(updateStatus, 1000);
-    window.setTimeout(restart, 1000*60*5);
+    window.setTimeout(function() {
+        endGame('Boring...');
+    }, 1000*60*5);
 });
 
 function tick() {
@@ -97,6 +102,7 @@ function tick() {
 function endGame(message) {
     // display messaga
     console.log('endgame:', message);
+    status_text.attr({text: message});
     window.setTimeout(restart, 5000);
 }
 
@@ -104,17 +110,37 @@ function restart() {
     document.location.href = document.location.href;
 }
 
+var audio_context;
+//var oscillator_node;
+function play(freq) {
+    if (!audio_context) audio_context = new AudioContext();
+    //if (!oscillator_node) 
+    var oscillator_node = audio_context.createOscillator();
+    oscillator_node.type = 'sine';
+    oscillator_node.frequency.value = freq;
+    oscillator_node.connect(audio_context.destination);
+    oscillator_node.start();
+    oscillator_node.stop(audio_context.currentTime + 0.5);
+}
+
 function drawGrid() {
-    color = 'deepskyblue';
+    const color = 'deepskyblue';
     drawLine(0,0, 0,paper_width, color);
     drawLine(0,0, paper_height,0, color);
     drawLine(0,paper_width, paper_width,paper_height, color);
     drawLine(paper_width,0, paper_width,paper_height, color);
 
-    x_spacing = 128;
+    const x_spacing = 128;
     for (x=0; x <= paper_width; x += x_spacing) drawLine(x,0, x,paper_height, color);
-    y_spacing = 128;
+    const y_spacing = 128;
     for (y=0; y <= paper_height; y += y_spacing) drawLine(0,y, paper_width,y, color);
+
+    // crosshair
+    const reticle = 10;
+    const xc = paper_width/2;
+    const yc = paper_height/2;
+    drawLine(xc-reticle,yc, xc+reticle,yc, 'white').attr({'stroke-width': 2, fill: 'white'}).toFront();
+    drawLine(xc,yc-reticle, xc,yc+reticle, 'white').attr({'stroke-width': 2, fill: 'white'}).toFront();
 }
 
 function drawLine(x1,y1, x2,y2, color) {
@@ -122,9 +148,8 @@ function drawLine(x1,y1, x2,y2, color) {
         'M', x1.toString(), ' ', y1.toString(),
         'L', x2.toString(), ' ', y2.toString()
     ].join('');
-    const line = paper.path(path);
-    line.attr('stroke', color);
-    return line
+    const line = paper.path(path).attr('stroke', color);
+    return line;
 }
 
 let status_elements = {
@@ -284,8 +309,8 @@ function Bug(options) {
         this.moving = 10000;
         this.motion_multiplier = 1.0;
         this.protection_multiplier = 1.0;
-        this.dx = Math.random() * 2 * max_v - max_v;
-        this.dy = Math.random() * 2 * max_v - max_v;
+        this.vx = Math.random() * 2 * max_v - max_v;
+        this.vy = Math.random() * 2 * max_v - max_v;
         for (var o in options) this[o] = options[o];
         if (this.faction == 'red') this.home_x = this.x = paper_width - this.x;
         this.elts = [];
@@ -322,8 +347,21 @@ function Bug(options) {
         if (this.moving <= 0) return;
         this.moving--;
 
+        // gravity
+        //g = 0;
+        if (g != 0.0) {
+            let dx = this.x - (paper_width/2);
+            let dy = this.y - (paper_height/2);
+            let r_squared = dx * dx + dy * dy;
+            let dist = Math.sqrt(r_squared);
+            if (dist > this.r * 2) {
+                this.vx = this.vx - (dx / dist) * (g / r_squared);
+                this.vy = this.vy - (dy / dist) * (g / r_squared);
+            }
+        }
+
         // slime trails
-        if (this.infected && ((this.moving % 10) == 0)) {
+        if (this.infected && ((this.moving % 20) == 0)) {
             const slime = paper.circle(this.x, this.y, 1)
                 .attr('stroke', this.infection_color)
                 .toBack();
@@ -332,23 +370,23 @@ function Bug(options) {
             }, 30000);
         }
 
-        this.x += this.dx * this.motion_multiplier;
+        this.x += this.vx * this.motion_multiplier;
         if (this.x > paper_width) {
-            this.dx = -this.dx;
+            this.vx = -this.vx;
             this.x = paper_width - (this.x - paper_width);
         }
         else if (this.x < 0) {
-            this.dx = -this.dx;
+            this.vx = -this.vx;
             this.x = -this.x;
         }
 
-        this.y += this.dy * this.motion_multiplier;
+        this.y += this.vy * this.motion_multiplier;
         if (this.y > paper_height) {
-            this.dy = -this.dy;
+            this.vy = -this.vy;
             this.y = paper_height - (this.y - paper_height);
         }
         else if (this.y < 0) {
-            this.dy = -this.dy;
+            this.vy = -this.vy;
             this.y = -this.y;
         }
 
@@ -359,6 +397,10 @@ function Bug(options) {
 
     this.distanceTo = function(b) {
         return Math.sqrt((this.x - bugs[b].x) ** 2 + (this.y - bugs[b].y) ** 2);
+    };
+
+    this.distanceToCenter = function(b) {
+        return Math.sqrt((this.x - (paper_width/2)) ** 2 + (this.y - (paper_height/2)) ** 2);
     };
 
     this.infect = function() {
@@ -404,7 +446,7 @@ function Bug(options) {
             this.elts[e].attr({fill: 'yellow'});
         }
         this.flash(this.x, this.y, 25, infection_color, 125);
-        //Sound.play('tick');
+        play(220 + Math.random() * 500);
     };
 
     this.die = function() {
@@ -412,7 +454,8 @@ function Bug(options) {
         for (var e in this.elts) {
             this.elts[e].animate({fill: 'black', opacity: 0.5}, 500);
         }
-        //Sound.play('gong');
+        //play(146.83);   // D3
+        play(220.00);   // A3
     };
 
     return this.init(options || {});
