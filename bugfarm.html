@@ -68,8 +68,6 @@ $(document).ready(function() {
     paper = Raphael(0, 0, paper_width, paper_height);
     console.log('paper:', paper_width, paper_height);
 
-    drawGrid();
-
     for (var i=0; i < num_bugs/2; i++) {
         bugs.push(GreenBug(i));
     }
@@ -78,6 +76,8 @@ $(document).ready(function() {
     }
     bugs[0].becomeInfected();
     bugs[num_bugs-1].becomeInfected();
+
+    drawGrid();
 
     status_text = paper.text(paper_width/2, 50, "Pandemico Silico")
         .attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50})
@@ -103,6 +103,7 @@ function endGame(message) {
     // display messaga
     console.log('endgame:', message);
     status_text.attr({text: message});
+    play(880, .15);
     window.setTimeout(restart, 5000);
 }
 
@@ -110,17 +111,31 @@ function restart() {
     document.location.href = document.location.href;
 }
 
-var audio_context;
-//var oscillator_node;
-function play(freq) {
-    if (!audio_context) audio_context = new AudioContext();
+var audio_context = 0;
+
+function play(freq, duration) {
+    if (audio_context == -1) return;
+    if (!audio_context) {
+        if (typeof(AudioContext) !== 'undefined') audio_context = new AudioContext();
+        else if (typeof(webkitAudioContext) !== 'undefined') audio_context = new webkitAudioContext();
+        else {
+            audio_context = -1;
+            console.log('no audio');
+        }
+    }
+
+    var gain_node = audio_context.createGain();
+    gain_node.gain.value = 0.5;
+    gain_node.connect(audio_context.destination);
+
     //if (!oscillator_node) 
     var oscillator_node = audio_context.createOscillator();
     oscillator_node.type = 'sine';
     oscillator_node.frequency.value = freq;
-    oscillator_node.connect(audio_context.destination);
+    //oscillator_node.connect(audio_context.destination);
+    oscillator_node.connect(gain_node);
     oscillator_node.start();
-    oscillator_node.stop(audio_context.currentTime + 0.5);
+    oscillator_node.stop(audio_context.currentTime + (duration || 0.5));
 }
 
 function drawGrid() {
@@ -238,8 +253,12 @@ function updateStatus() {
     time_display.attr({text: time_counter.toString()});
 }
 
+function randomPick(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
 function randomBug() {
-    return Math.floor(Math.random() * num_bugs)
+    return randomPick(bugs);
 }
 
 function linkKey(i, j) {
@@ -455,7 +474,8 @@ function Bug(options) {
             this.elts[e].animate({fill: 'black', opacity: 0.5}, 500);
         }
         //play(146.83);   // D3
-        play(220.00);   // A3
+        //play(220.00);   // A3
+        play(randomPick([130.81, 146.83, 196.0]));
     };
 
     return this.init(options || {});
