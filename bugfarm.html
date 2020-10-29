@@ -295,7 +295,7 @@ function GreenBug(id) {
         faction: 'green',
         color: 'lime',
         motion_multiplier: 0.5,
-        protection_multiplier: 0.90
+        protection_multiplier: 0.50
     });
 }
 
@@ -333,6 +333,7 @@ function Bug(options) {
         for (var o in options) this[o] = options[o];
         if (this.faction == 'red') this.home_x = this.x = paper_width - this.x;
         this.elts = [];
+        this.interactions = [];
         this.render();
         return this;
     };
@@ -427,8 +428,10 @@ function Bug(options) {
         for (var b in bugs) {
             if (b == this.id) continue;
             if (bugs[b].dead) continue;
+            if (this.interactions.indexOf(bugs[b].id) >= 0) continue;
             const distance = this.distanceTo(b);
-            if (distance < (2 * this.r)) {
+            if (distance < (this.r + bugs[b].r)) {
+                this.interactions.push(bugs[b].id);
                 if (this.infected && !bugs[b].infected) {
                     if (Math.random() > bugs[b].protection_multiplier) {
                         bugs[b].becomeInfected(this.infection_color);
@@ -438,6 +441,7 @@ function Bug(options) {
                     }
                     //else console.log('outbound infection prevented');
                 }
+/*
                 else if (bugs[b].infected && !this.infected) {
                     if (Math.random() > this.protection_multiplier) {
                         this.becomeInfected(bugs[b].infection_color);
@@ -445,6 +449,7 @@ function Bug(options) {
                     }
                     //else console.log('inbound infection prevented');
                 }
+*/
             }
         }
     };
