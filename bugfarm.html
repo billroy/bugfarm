@@ -74,15 +74,19 @@ $(document).ready(function() {
     for (var i=num_bugs/2; i < num_bugs; i++) {
         bugs.push(RedBug(i));
     }
+    //bugs.push(PurpleBug(num_bugs++));
     bugs[0].becomeInfected();
+    //bugs[1].becomeInfected();
     bugs[num_bugs-1].becomeInfected();
 
     drawGrid();
 
-    status_text = paper.text(paper_width/2, 50, "Pandemico Silico")
+    status_text = paper.text(paper_width/2, 50, "Acme Virus Farm")
         .attr({stroke: 'limegreen', fill: 'limegreen', 'font-size': 50})
         .toFront();
     renderStatus();
+
+    showStartupMessage();
 
     window.setInterval(tick, dt);
     window.setInterval(updateStatus, 1000);
@@ -92,11 +96,12 @@ $(document).ready(function() {
 });
 
 function tick() {
+    let t_start = new Date().getTime();
     for (var b=0; b < num_bugs; b++) {
         bugs[b].tick();
     }
-    time_counter++;
     updateLinks();
+    time_counter = new Date().getTime() - t_start;
 }
 
 function endGame(message) {
@@ -198,7 +203,7 @@ function renderStatus() {
     tt_y = t_y;
     let e2 = paper.text(t_x, t_y, 'Healthy:').attr(attrs).toFront();
     t_y += y_inc;
-    let e3 = paper.text(t_x, t_y, 'Infected:').attr(attrs).toFront();
+    let e3 = paper.text(t_x, t_y, 'Infected:').attr(attrs).attr({fill: 'yellow'}).toFront();
     t_y += y_inc;
     let e4 = paper.text(t_x, t_y, 'Dead:').attr(attrs).toFront();
     t_y += y_inc;
@@ -253,6 +258,33 @@ function updateStatus() {
     time_display.attr({text: time_counter.toString()});
 }
 
+const intro_message = [
+    'Congratulations!  Your new Acme Virus Farm is up and running.',
+    'The Starter Kit comes with ' + num_bugs + ' bugs.',
+    'Two bugs are infected with virus.',
+    'Infected bugs have a yellow nucleus.',
+    'Green Bugs wear protection; Red Bugs don\'t.',
+    'Red Bugs move faster, too.',
+    'Mind the Red Bugs...'
+];
+
+function showStartupMessage() {
+    for (var m in intro_message) {
+        const msg = m;
+        window.setTimeout(function() {
+            console.log('scrolling:', msg, intro_message[msg]);
+            scrollMessage(intro_message[msg]);
+        }, m * 3000);
+    }
+}
+
+function scrollMessage(text) {
+    var scroll_text = paper.text(paper_width/2, paper_height-100, text)
+        .attr({stroke: 'yellow', fill: 'yellow', 'font-size': 50})
+        .animate({y:100, opacity:0}, 10000, 'linear', function() {scroll_text.remove()})
+        .toFront();
+}
+
 function randomPick(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
@@ -278,7 +310,7 @@ function addLink(i, j, color) {
     if (key in links) return;
     links[key] = [i, j];
     const link_element = paper.path(linkPath(i, j))
-        .attr('stroke', color || 'darkturquoise')
+        .attr({stroke: color || 'darkturquoise', opacity: 0.5})
         .toBack();
     link_elements[key] = link_element;
 }
@@ -295,7 +327,7 @@ function GreenBug(id) {
         faction: 'green',
         color: 'lime',
         motion_multiplier: 0.5,
-        protection_multiplier: 0.50
+        protection_factor: 0.60
     });
 }
 
@@ -306,7 +338,20 @@ function RedBug(id) {
         color: 'red',
         fill: 'darkred',
         motion_multiplier: 1.0,
-        protection_multiplier: 0.1
+        protection_factor: 0.1
+    });
+    //bug.becomeInfected();
+    return bug;
+}
+
+function PurpleBug(id) {
+    let bug = new Bug({
+        id: id,
+        faction: 'purple',
+        color: 'purple',
+        fill: 'darkred',
+        motion_multiplier: 1.0,
+        protection_factor: 1.0
     });
     //bug.becomeInfected();
     return bug;
@@ -327,7 +372,7 @@ function Bug(options) {
         this.home_y = this.y = Math.random() * paper_height;
         this.moving = 10000;
         this.motion_multiplier = 1.0;
-        this.protection_multiplier = 1.0;
+        this.protection_factor = 1.0;
         this.vx = Math.random() * 2 * max_v - max_v;
         this.vy = Math.random() * 2 * max_v - max_v;
         for (var o in options) this[o] = options[o];
@@ -383,7 +428,7 @@ function Bug(options) {
         // slime trails
         if (this.infected && ((this.moving % 20) == 0)) {
             const slime = paper.circle(this.x, this.y, 1)
-                .attr('stroke', this.infection_color)
+                .attr({stroke: this.infection_color, opacity: 0.75})
                 .toBack();
             window.setTimeout(function() {
                 slime.remove();
@@ -425,6 +470,7 @@ function Bug(options) {
 
     this.infect = function() {
         if (this.dead) return;
+        if (!this.infected) return;
         for (var b in bugs) {
             if (b == this.id) continue;
             if (bugs[b].dead) continue;
@@ -433,11 +479,12 @@ function Bug(options) {
             if (distance < (this.r + bugs[b].r)) {
                 this.interactions.push(bugs[b].id);
                 if (this.infected && !bugs[b].infected) {
-                    if (Math.random() > bugs[b].protection_multiplier) {
+                    //if (Math.random() > bugs[b].protection_multiplier) {
+                    if (Math.random() < (1-this.protection_factor) * (1-bugs[b].protection_factor)) {
                         bugs[b].becomeInfected(this.infection_color);
                         addLink(this.id, b, this.infection_color);
                         this.infection_count++;
-                        this.elts[0].attr('r', this.r + this.infection_count);
+                        this.elts[0].attr('r', this.r + 3*this.infection_count);
                     }
                     //else console.log('outbound infection prevented');
                 }
@@ -476,7 +523,7 @@ function Bug(options) {
     this.die = function() {
         this.dead = 1;
         for (var e in this.elts) {
-            this.elts[e].animate({fill: 'black', opacity: 0.5}, 500);
+            this.elts[e].animate({fill: 'black', opacity: 0.5}, 500).toBack();
         }
         //play(146.83);   // D3
         //play(220.00);   // A3
