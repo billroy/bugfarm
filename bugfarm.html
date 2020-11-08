@@ -51,7 +51,7 @@ var paper_width = 2048;
 var paper_height = 1024;
 var num_bugs = 200;
 var max_v = 1.0;
-var g = 100.0;    // 50.;
+var g = -50.0;    // 50.;
 var dt = 20;
 
 var paper;
@@ -59,6 +59,7 @@ var bugs = [];
 var links = {};
 var link_elements = {};
 var status_text = '';
+var trails = true;
 
 $(document).ready(function() {
     console.log('Bug Farm here!');
@@ -391,7 +392,52 @@ function Bug(options) {
         }
     };
 
+    this.renderEllipse = function() {
+        var circle = paper.ellipse(this.x, this.y, this.r, this.r * 0.8);
+        circle.attr({
+            stroke: this.color,
+            //'stroke-opacity': 1.0,
+            'fill-opacity': 1.0,
+            'stroke-width': 4,
+            fill: this.fill
+        });
+        const self = this;
+        circle.click(function() {
+            self.becomeInfected();
+        });
+        this.elts.push(circle);
+    };
+
+    this.renderPath = function() {
+        //const tail = Math.random() * 15 * this.motion_multiplier;
+        const path = [
+            'M', (this.x).toString(), ',', (this.y).toString(),
+            //'l-4,16h8',
+            'l-6,16 6,-6',
+            //'v', tail.toString(), ' -', tail.toString(),
+            'l6,6 -6,-16',
+        ].join('');
+        return path;
+    };
+
     this.render = function() {
+        const path = this.renderPath();
+        var elt = paper.path(path);
+        elt.attr({
+            stroke: this.color,
+            //'stroke-opacity': 1.0,
+            'fill-opacity': 1.0,
+            'stroke-width': 1,
+            fill: this.fill
+        });
+        const self = this;
+        elt.click(function() {
+            self.becomeInfected();
+        });
+        this.elts.push(elt);
+    };
+
+    this.renderCircle = function() {
         var circle = paper.circle(this.x, this.y, this.r);
         circle.attr({
             stroke: this.color,
@@ -426,9 +472,9 @@ function Bug(options) {
         }
 
         // slime trails
-        if (this.infected && ((this.moving % 20) == 0)) {
+        if ((trails || this.infected) && ((this.moving % 20) == 0)) {
             const slime = paper.circle(this.x, this.y, 1)
-                .attr({stroke: this.infection_color, opacity: 0.75})
+                .attr({stroke: this.infection_color || 'gray', opacity: 0.75})
                 .toBack();
             window.setTimeout(function() {
                 slime.remove();
@@ -456,8 +502,20 @@ function Bug(options) {
         }
 
         for (var e in this.elts) {
-            this.elts[e].attr({'cx': this.x, 'cy': this.y});
+            //this.elts[e].attr({'cx': this.x, 'cy': this.y});
+            //this.elts[e].attr({'x': this.x, 'y': this.y});
+            this.elts[e].attr('path', this.renderPath());
+            if (1) {
+                this.elts[e].transform('').rotate(this.heading(), this.x, this.y);
+            }
         }
+    };
+
+    this.heading = function() {
+        //console.log('hdg:', Math.atan2(this.vy, this.vx));
+        const heading = (90 + (360/(2*Math.PI)) * Math.atan2(this.vy, this.vx));
+        //console.log('heading:', this.vx, this.vy, heading);
+        return heading;
     };
 
     this.distanceTo = function(b) {
